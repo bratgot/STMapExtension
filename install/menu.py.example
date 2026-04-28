@@ -1,0 +1,27 @@
+"""
+menu.py snippet for adding STMapOverscan to the Nuke node menu.
+
+Drop this into your ~/.nuke/menu.py (or your studio's menu.py) and adjust
+the path to wherever you cloned the repo.
+"""
+import os
+import nuke
+
+
+# point this at the cloned repo's install.py
+STMAP_INSTALL_PATH = os.path.expanduser('~/dev/STMapExtension/install.py')
+
+
+def create_stmap_overscan():
+    """Source install.py and create a fresh STMapOverscan group."""
+    if not os.path.isfile(STMAP_INSTALL_PATH):
+        nuke.message('STMapOverscan: install.py not found at\n' + STMAP_INSTALL_PATH)
+        return
+    with open(STMAP_INSTALL_PATH, 'r') as f:
+        exec(compile(f.read(), STMAP_INSTALL_PATH, 'exec'), {'__name__': '__main__'})
+
+
+# add to a custom menu
+m = nuke.menu('Nodes')
+sub = m.addMenu('STMapExtension', icon='STMap.png')
+sub.addCommand('STMapOverscan', create_stmap_overscan, 'shift+o')

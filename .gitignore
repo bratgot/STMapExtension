@@ -1,0 +1,29 @@
+# Nuke
+*.autosave
+*.nk~
+*.nk.autosave
+.nuke/
+*.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build / cache
+*.rpp.cache
+build/
+dist/

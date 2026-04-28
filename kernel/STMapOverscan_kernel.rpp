@@ -1,0 +1,110 @@
+kernel STMapOverscan : ImageComputationKernel<ePixelWise>
+{
+  Image<eRead, eAccessRandom, eEdgeClamped> src;
+  Image<eWrite> dst;
+
+  param:
+    int2 padOffset;
+    int  extrapolation;
+    int  smoothing;
+
+  local:
+    int2 srcOrigin;
+    int2 srcSize;
+
+  void define() {
+    defineParam(padOffset,     "padOffset",     int2(192, 108));
+    defineParam(extrapolation, "extrapolation", 1);
+    defineParam(smoothing,     "smoothing",     8);
+  }
+
+  void init() {
+    srcOrigin = int2(src.bounds.x1, src.bounds.y1);
+    srcSize   = int2(src.bounds.x2 - src.bounds.x1,
+                     src.bounds.y2 - src.bounds.y1);
+  }
+
+  float2 sampleUV(int2 srcP) {
+    float4 s = src(srcP.x + srcOrigin.x, srcP.y + srcOrigin.y);
+    return float2(s.x, s.y);
+  }
+
+  float2 sampleSmoothed(int2 srcP, int axis, int radius) {
+    if (radius <= 0) return sampleUV(srcP);
+    float2 sum = float2(0.0f, 0.0f);
+    float count = 0.0f;
+    for (int i = -radius; i <= radius; i++) {
+      int2 p = srcP;
+      if (axis == 0) p.x = clamp(p.x + i, 0, srcSize.x - 1);
+      else           p.y = clamp(p.y + i, 0, srcSize.y - 1);
+      sum = sum + sampleUV(p);
+      count = count + 1.0f;
+    }
+    return sum / count;
+  }
+
+  void process(int2 pos) {
+    int2 srcPos = pos - padOffset;
+    bool inside = srcPos.x >= 0 && srcPos.y >= 0 &&
+                  srcPos.x < srcSize.x && srcPos.y < srcSize.y;
+
+    float2 uv = float2(0.0f, 0.0f);
+
+    if (inside) {
+      uv = sampleUV(srcPos);
+    } else if (extrapolation == 2) {
+      uv = float2(0.0f, 0.0f);
+    } else {
+      int2 clamped = int2(clamp(srcPos.x, 0, srcSize.x - 1),
+                          clamp(srcPos.y, 0, srcSize.y - 1));
+      int2 step = srcPos - clamped;
+      float2 edge = sampleUV(clamped);
+
+      if (extrapolation == 0) {
+        uv = edge;
+      } else if (extrapolation == 3) {
+        int steps  = max(abs(step.x), abs(step.y));
+        int padDim = max(padOffset.x, padOffset.y);
+        float fade = 0.0f;
+        if (padDim > 0) {
+          fade = 1.0f - float(steps) / float(padDim);
+          if (fade < 0.0f) fade = 0.0f;
+        }
+        uv = edge * fade;
+      } else {
+        int baseline = max(1, smoothing);
+        int smoothR  = smoothing;
+
+        float2 slopeX = float2(0.0f, 0.0f);
+        float2 slopeY = float2(0.0f, 0.0f);
+        float2 anchor = edge;
+
+        if (step.x != 0) {
+          int dirX = 1;
+          if (step.x < 0) dirX = -1;
+          int innerX = clamp(clamped.x - dirX * baseline, 0, srcSize.x - 1);
+          int actualB = abs(clamped.x - innerX);
+          float2 edgeS  = sampleSmoothed(clamped, 1, smoothR);
+          float2 innerS = sampleSmoothed(int2(innerX, clamped.y), 1, smoothR);
+          if (actualB > 0) slopeX = (edgeS - innerS) / float(actualB);
+          anchor = edgeS;
+        }
+
+        if (step.y != 0) {
+          int dirY = 1;
+          if (step.y < 0) dirY = -1;
+          int innerY = clamp(clamped.y - dirY * baseline, 0, srcSize.y - 1);
+          int actualB = abs(clamped.y - innerY);
+          float2 edgeS  = sampleSmoothed(clamped, 0, smoothR);
+          float2 innerS = sampleSmoothed(int2(clamped.x, innerY), 0, smoothR);
+          if (actualB > 0) slopeY = (edgeS - innerS) / float(actualB);
+          if (step.x == 0) anchor = edgeS;
+        }
+
+        uv = anchor + slopeX * float(abs(step.x)) + slopeY * float(abs(step.y));
+      }
+    }
+
+    dst() = float4(uv.x, uv.y, 0.0f, 1.0f);
+  }
+};
