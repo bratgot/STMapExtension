@@ -4,7 +4,7 @@ A Nuke tool for **uncropping ST maps** — extending UV values past their origin
 
 When an ST map gets cropped (so its data window no longer covers full 0..1 in U and V), downstream STMap nodes can't sample beyond the bbox edges. This tool reconstructs plausible UV values for the padded region by fitting per-axis functions to the outermost trusted pixels and projecting them outward, with smoothing to suppress noise amplification.
 
-![preview](docs/images/STMapExtension.png)
+![preview](docs/images/STMapExtensionv2.png)
 
 ## Features
 
